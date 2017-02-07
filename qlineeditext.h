@@ -19,7 +19,7 @@ public:
     {
         if(min<max && minStrict && input.toDouble()<min) return QValidator::Intermediate;
         if(min<max && maxStrict && input.toDouble()>max) return QValidator::Intermediate;
-        if(!list.isEmpty() && listStrict && !list.contains(input.toDouble())) return QValidator::Invalid;
+        if(!list.isEmpty() && listStrict && !list.contains(input.toDouble())) return QValidator::Intermediate;
         return QValidator::Acceptable;
     }
 
