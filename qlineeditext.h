@@ -31,7 +31,7 @@ public:
         setAttribute(Qt::WA_AcceptTouchEvents,true);
         setMouseTracking(true);
         setValidator(&validator);
-        connect(this,&QLineEditExt::editingFinished,[=](){finishEditing();});
+        connect(this,&QLineEdit::editingFinished,[=](){finishEditing();});
     }
     QLineEditExt(const QString & contents, QWidget * parent = 0) : QLineEdit(contents, parent), validator(this) {
         min=max=m_step=ctrlStep=0.;
@@ -50,7 +50,7 @@ public:
         setAttribute(Qt::WA_AcceptTouchEvents,true);
         setMouseTracking(true);
         setValidator(&validator);
-        connect(this,&QLineEditExt::editingFinished,[=](){finishEditing();});
+        connect(this,&QLineEdit::editingFinished,[=](){finishEditing();});
     }
 
     //Min/Max Range - also defines the number of decimals, and if set to strict, won't allow the user to go below or above the defined range
@@ -62,19 +62,20 @@ public:
     //-setStep (fixed increment)
     //-setCount (set a number of total step, and define a gamma so that increment react accordingly to micro and large scales - requires a range)
     //-setValueList (set specific values - if set to strict, will only accept the values from the list)
-    //-setStringList (set specific strings - activate a pop-up completer and if set to strict, will only accept the strings from the list)
+    //-setTextList (set specific texts - activate a pop-up completer and if set to strict, will only accept the strings from the list)
     //the setIncrementDragDistance define the distance treshold at which an increment is considered
-    void setIncrementable(bool incrementable=true){this->incrementable=incrementable; m_step=ctrlStep=0.; m_count=ctrlCount=0; m_valueList.clear(); m_stringList.clear(); validator.setValueList(); if(completer()) delete completer(); setCompleter(0); finishEditing();}
+    void setIncrementable(bool incrementable=true){this->incrementable=incrementable; m_step=ctrlStep=0.; m_count=ctrlCount=0; m_valueList.clear(); m_textList.clear(); validator.setValueList(); if(completer()) delete completer(); setCompleter(0); finishEditing();}
     void setStep(double step, double ctrlStep=0.) {setIncrementable(step>0); this->m_step=step; this->ctrlStep=ctrlStep==0.?step:ctrlStep; finishEditing();}
     void setCount(int count, int ctrlCount=0, double power=2.) {setIncrementable(count>0); this->m_count=count; this->ctrlCount=ctrlCount==0?count:ctrlCount; this->m_power=power; finishEditing();}
     void setValueList(QList<double> list, bool strict=true) {setIncrementable(!list.isEmpty()); this->m_valueList=list; this->listStrict=strict; validator.setValueList(list,strict); finishEditing();}
-    void setStringList(QStringList list, bool strict=true) {setIncrementable(!list.isEmpty()); this->m_stringList=list; this->listStrict=strict; validator.setStringList(list,strict); if(!list.isEmpty()){setCompleter(new QCompleter(list,this)); completer()->setCaseSensitivity(Qt::CaseInsensitive); completer()->setCompletionMode(QCompleter::UnfilteredPopupCompletion); completer()->setFilterMode(Qt::MatchContains); completer()->setMaxVisibleItems(10); completer()->setWrapAround(false);} finishEditing();}
+    void setTextList(QStringList list, bool strict=true) {setIncrementable(!list.isEmpty()); this->m_textList=list; this->listStrict=strict; validator.setTextList(list,strict); if(!list.isEmpty()){setCompleter(new QCompleter(list,this)); completer()->setCaseSensitivity(Qt::CaseInsensitive); completer()->setCompletionMode(QCompleter::UnfilteredPopupCompletion); completer()->setFilterMode(Qt::MatchContains); completer()->setMaxVisibleItems(10); completer()->setWrapAround(false);} finishEditing();}
     void setIncrementDragDistance(int mouse=8, int touch=12) {dragStep=mouseDragStep=mouse; touchDragStep=touch;}
     bool ctrlPressed(){return qApp->queryKeyboardModifiers()&Qt::ControlModifier;}
     IncrementDiff incrementDiff(){return m_incrementDiff;}
 
-    //Current Value - when defining a default value, user can reset to it by double-clicking the widget
-    void setDefaultValue(double value) {defaultValue=value; setValue(value);}
+    //Current Value - when defining a default value/text, user can reset to it by double-clicking the widget
+    void setDefaultValue(double value=qQNaN()) {defaultValue=value; defaultText.clear(); setValue(value);}
+    void setDefaultText(QString text=QString()) {defaultText=text; defaultValue=qQNaN(); setText(text);}
     void setValue(double value) {setText(QString::number(value,'f',decimals)); finishEditing();}
     double value() { return text().toDouble();}
     int intValue() { return qRound(value());}
@@ -82,9 +83,9 @@ public:
     //Decoration - show a progress bar, define optional prefix and suffix or all at once and more with the setDescription method
     //the progress bar color can be styled with the alternate-background-color stylesheet property
     void showProgress(bool show) { progress=show; update(); }
-    void setPrefix(QString prefix){this->prefix=prefix+" "; update();}
-    void setSuffix(QString suffix){this->suffix=" "+suffix; update();}
-    void setDescription(QString prefix, QString suffix, bool progress=true, int horizontalMargin=0, Qt::Alignment alignment=Qt::AlignCenter){setContentsMargins(horizontalMargin,0,horizontalMargin,0); setAlignment(alignment); this->progress=progress; setPrefix(prefix); setSuffix(suffix);}
+    void setPrefix(QString prefix){this->prefix=prefix+(prefix.isEmpty()?"":" "); update();}
+    void setSuffix(QString suffix){this->suffix=(suffix.isEmpty()?"":" ")+suffix; update();}
+    void setDescription(QString prefix, QString suffix, bool progress=true, int rightMargin=0, Qt::Alignment alignment=Qt::AlignCenter){setContentsMargins(0,0,rightMargin,0); setAlignment(alignment); this->progress=progress; setPrefix(prefix); setSuffix(suffix);}
 
     //Manual increment/decrement
     void increment()
@@ -101,8 +102,8 @@ public:
         }
         if(!m_valueList.isEmpty())
             setValue(m_valueList[qBound(0,m_valueList.indexOf(value())+1,m_valueList.count()-1)]);
-        if(!m_stringList.isEmpty())
-            setText(m_stringList[qBound(0,m_stringList.indexOf(text())+1,m_stringList.count()-1)]);
+        if(!m_textList.isEmpty())
+            setText(m_textList[qBound(0,m_textList.indexOf(text())+1,m_textList.count()-1)]);
         if(!isReadOnly())
             selectAll();
         finishEditing();
@@ -124,8 +125,8 @@ public:
         }
         if(!m_valueList.isEmpty())
             setValue(m_valueList[qBound(0,m_valueList.indexOf(value())-1,m_valueList.count()-1)]);
-        if(!m_stringList.isEmpty())
-            setText(m_stringList[qBound(0,m_stringList.indexOf(text())-1,m_stringList.count()-1)]);
+        if(!m_textList.isEmpty())
+            setText(m_textList[qBound(0,m_textList.indexOf(text())-1,m_textList.count()-1)]);
         if(!isReadOnly())
             selectAll();
         finishEditing();
@@ -197,7 +198,7 @@ protected:
         {
             setReadOnly(false);
             selectAll();
-            if(!m_stringList.isEmpty() && completer())
+            if(!m_textList.isEmpty() && completer())
                 completer()->complete();
             QLineEdit::mouseReleaseEvent(event);
         }
@@ -222,6 +223,12 @@ protected:
         if(!qIsNaN(defaultValue))
         {
             setValue(defaultValue);
+            finishEditing();
+            lastIncrement=1; //to prevent re-editing on mouse release
+        }
+        if(!defaultText.isEmpty())
+        {
+            setText(defaultText);
             finishEditing();
             lastIncrement=1; //to prevent re-editing on mouse release
         }
@@ -275,8 +282,8 @@ protected:
                 progressValue=qBound(0.,pow((value()-min)/(max-min),1./m_power),1.);
             if(!m_valueList.isEmpty())
                 progressValue=double(m_valueList.indexOf(value()))/double(m_valueList.count()-1);
-            if(!m_stringList.isEmpty())
-                progressValue=double(m_stringList.indexOf(text()))/double(m_stringList.count()-1);
+            if(!m_textList.isEmpty())
+                progressValue=double(m_textList.indexOf(text()))/double(m_textList.count()-1);
             painter.fillRect(leftMargin,topMargin,qRound(double(contentsWidth)*progressValue),height()-(topMargin+bottomMargin),palette().color(QPalette::AlternateBase));
         }
 
@@ -289,7 +296,7 @@ protected:
         {
             setTextMargins(prefixWidth,0,suffixWidth,0);
             if(completer())
-                completer()->popup()->setStyleSheet(QString("margin-left: %1px; margin-right: %2px; text-align: %3;").arg(prefixWidth).arg(suffixWidth).arg(alignment()&Qt::AlignLeading?"left":(alignment()&Qt::AlignTrailing?"right":"center")));
+                completer()->popup()->setStyleSheet(QString("padding-left: %1px; padding-right: %2px; text-align: %3;").arg(prefixWidth).arg(suffixWidth).arg(alignment()&Qt::AlignLeading?"left":(alignment()&Qt::AlignTrailing?"right":"center")));
         }
 
         QLineEdit::paintEvent(event);
@@ -326,14 +333,14 @@ private:
             decimals=0;
         }
         void setRange(double min, double max, int decimals, bool minStrict, bool maxStrict) {this->min=min; this->max=max; this->decimals=decimals; this->minStrict=minStrict; this->maxStrict=maxStrict;}
-        void setValueList(QList<double> list=QList<double>(), bool strict=true) {this->valueList=list; this->listStrict=strict; this->stringList.clear();}
-        void setStringList(QStringList list=QStringList(), bool strict=true) {this->stringList=list; this->listStrict=strict; this->valueList.clear();}
+        void setValueList(QList<double> list=QList<double>(), bool strict=true) {this->valueList=list; this->listStrict=strict; this->textList.clear();}
+        void setTextList(QStringList list=QStringList(), bool strict=true) {this->textList=list; this->listStrict=strict; this->valueList.clear();}
         QValidator::State validate(QString &input, int &pos) const
         {
             if(min<max && minStrict && input.toDouble()<min) return QValidator::Intermediate;
             if(min<max && maxStrict && input.toDouble()>max) return QValidator::Intermediate;
             if(!valueList.isEmpty() && listStrict && !valueList.contains(input.toDouble())) return QValidator::Intermediate;
-            if(!stringList.isEmpty() && listStrict && !stringList.contains(input)) return QValidator::Intermediate;
+            if(!textList.isEmpty() && listStrict && !textList.contains(input)) return QValidator::Intermediate;
             return QValidator::Acceptable;
         }
 
@@ -349,12 +356,12 @@ private:
                     else if(i==valueList.count()) input=QString::number(qMin(max,valueList.last()),'f',decimals);
                 }
             }
-            if(!stringList.isEmpty() && listStrict)
+            if(!textList.isEmpty() && listStrict)
             {
-                for(int i=0; i<=stringList.count(); i++)
+                for(int i=0; i<=textList.count(); i++)
                 {
-                    if(i<stringList.count() && stringList[i].toLower().contains(input.toLower())){input=stringList[i]; break;}
-                    else if(i==stringList.count()) input=stringList.first();
+                    if(i<textList.count() && textList[i].toLower().contains(input.toLower())){input=textList[i]; break;}
+                    else if(i==textList.count()) input=textList.first();
                 }
             }
         }
@@ -364,7 +371,7 @@ private:
         int decimals;
 
         QList<double> valueList;
-        QStringList stringList;
+        QStringList textList;
         bool listStrict;
     };
 
@@ -376,11 +383,12 @@ private:
     int m_count, ctrlCount;
     double m_power;
     QList<double> m_valueList;
-    QStringList m_stringList;
+    QStringList m_textList;
     bool listStrict;
     bool incrementable;
 
     double defaultValue;
+    QString defaultText;
 
     int mouseDragStep, touchDragStep, dragStep;
     QPoint dragStart;
