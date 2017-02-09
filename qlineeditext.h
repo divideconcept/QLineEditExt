@@ -4,47 +4,6 @@
 #include <QtCore>
 #include <QtWidgets>
 
-class QLineEditValidator : public QValidator
-{
-public:
-    QLineEditValidator(QObject * parent = 0) : QValidator(parent)
-    {
-        min=max=0.;
-        minStrict=maxStrict=listStrict=true;
-        decimals=0;
-    }
-    void setRange(double min, double max, int decimals, bool minStrict, bool maxStrict) {this->min=min; this->max=max; this->decimals=decimals; this->minStrict=minStrict; this->maxStrict=maxStrict;}
-    void setList(QList<double> list=QList<double>(), bool strict=true) {this->list=list; this->listStrict=strict;}
-    QValidator::State validate(QString &input, int &pos) const
-    {
-        if(min<max && minStrict && input.toDouble()<min) return QValidator::Intermediate;
-        if(min<max && maxStrict && input.toDouble()>max) return QValidator::Intermediate;
-        if(!list.isEmpty() && listStrict && !list.contains(input.toDouble())) return QValidator::Intermediate;
-        return QValidator::Acceptable;
-    }
-
-    void fixup(QString &input) const
-    {
-        if(min<max && minStrict) input=QString::number(qMax(min,input.toDouble()),'f',decimals);
-        if(min<max && maxStrict) input=QString::number(qMin(max,input.toDouble()),'f',decimals);
-        if(!list.isEmpty() && listStrict)
-        {
-            for(int i=0; i<=list.count(); i++)
-            {
-                if(input.toDouble()<list[i] && i<list.count()) {input=QString::number(list[qMax(i-1,0)],'f',decimals); break;}
-                else if(i==list.count()) input=QString::number(qMin(max,list.last()),'f',decimals);
-            }
-        }
-    }
-private:
-    double min, max;
-    bool minStrict, maxStrict;
-    int decimals;
-
-    QList<double> list;
-    bool listStrict;
-};
-
 class QLineEditExt : public QLineEdit
 {
 public:
@@ -102,12 +61,14 @@ public:
     //-setIncrementable (manage your own increment function, after editingFinished signal received check incrementDiff and isCtrl
     //-setStep (fixed increment)
     //-setCount (set a number of total step, and define a gamma so that increment react accordingly to micro and large scales - requires a range)
-    //-setList (set specific values - if set to strict, will only accept the values from the list)
+    //-setValueList (set specific values - if set to strict, will only accept the values from the list)
+    //-setStringList (set specific strings - activate a pop-up completer and if set to strict, will only accept the strings from the list)
     //the setIncrementDragDistance define the distance treshold at which an increment is considered
-    void setIncrementable(bool incrementable=true){this->incrementable=incrementable; if(!incrementable) {m_step=ctrlStep=0.; m_count=ctrlCount=0; m_list.clear(); validator.setList();} finishEditing();}
-    void setStep(double step, double ctrlStep=0.) {this->m_step=step; this->ctrlStep=ctrlStep==0.?step:ctrlStep; m_count=ctrlCount=0; m_list.clear(); validator.setList(); incrementable=true; finishEditing();}
-    void setCount(int count, int ctrlCount=0, double power=2.) {this->m_count=count; this->ctrlCount=ctrlCount==0?count:ctrlCount; this->m_power=power; m_step=ctrlStep=0.; m_list.clear(); validator.setList(); incrementable=true; finishEditing();}
-    void setList(QList<double> list, bool strict=true) {this->m_list=list; this->listStrict=strict; m_step=ctrlStep=0.; m_count=ctrlCount=0; validator.setList(list,strict); incrementable=true; finishEditing();}
+    void setIncrementable(bool incrementable=true){this->incrementable=incrementable; m_step=ctrlStep=0.; m_count=ctrlCount=0; m_valueList.clear(); m_stringList.clear(); validator.setValueList(); if(completer()) delete completer(); setCompleter(0); finishEditing();}
+    void setStep(double step, double ctrlStep=0.) {setIncrementable(step>0); this->m_step=step; this->ctrlStep=ctrlStep==0.?step:ctrlStep; finishEditing();}
+    void setCount(int count, int ctrlCount=0, double power=2.) {setIncrementable(count>0); this->m_count=count; this->ctrlCount=ctrlCount==0?count:ctrlCount; this->m_power=power; finishEditing();}
+    void setValueList(QList<double> list, bool strict=true) {setIncrementable(!list.isEmpty()); this->m_valueList=list; this->listStrict=strict; validator.setValueList(list,strict); finishEditing();}
+    void setStringList(QStringList list, bool strict=true) {setIncrementable(!list.isEmpty()); this->m_stringList=list; this->listStrict=strict; validator.setStringList(list,strict); if(!list.isEmpty()){setCompleter(new QCompleter(list,this)); completer()->setCaseSensitivity(Qt::CaseInsensitive); completer()->setCompletionMode(QCompleter::UnfilteredPopupCompletion); completer()->setFilterMode(Qt::MatchContains); completer()->setMaxVisibleItems(10); completer()->setWrapAround(false);} finishEditing();}
     void setIncrementDragDistance(int mouse=8, int touch=12) {dragStep=mouseDragStep=mouse; touchDragStep=touch;}
     bool ctrlPressed(){return qApp->queryKeyboardModifiers()&Qt::ControlModifier;}
     IncrementDiff incrementDiff(){return m_incrementDiff;}
@@ -138,8 +99,10 @@ public:
             if(newValue-value()<pow(10.,double(-decimals))) newValue=value()+pow(10.,double(-decimals));
             setValue(newValue);
         }
-        if(!m_list.isEmpty())
-            setValue(m_list[qMin(m_list.indexOf(value())+1,m_list.count()-1)]);
+        if(!m_valueList.isEmpty())
+            setValue(m_valueList[qBound(0,m_valueList.indexOf(value())+1,m_valueList.count()-1)]);
+        if(!m_stringList.isEmpty())
+            setText(m_stringList[qBound(0,m_stringList.indexOf(text())+1,m_stringList.count()-1)]);
         if(!isReadOnly())
             selectAll();
         finishEditing();
@@ -159,8 +122,10 @@ public:
             if(value()-newValue<pow(10.,double(-decimals))) newValue=value()-pow(10.,double(-decimals));
             setValue(newValue);
         }
-        if(!m_list.isEmpty())
-            setValue(m_list[qMax(m_list.indexOf(value())-1,0)]);
+        if(!m_valueList.isEmpty())
+            setValue(m_valueList[qBound(0,m_valueList.indexOf(value())-1,m_valueList.count()-1)]);
+        if(!m_stringList.isEmpty())
+            setText(m_stringList[qBound(0,m_stringList.indexOf(text())-1,m_stringList.count()-1)]);
         if(!isReadOnly())
             selectAll();
         finishEditing();
@@ -232,6 +197,8 @@ protected:
         {
             setReadOnly(false);
             selectAll();
+            if(!m_stringList.isEmpty() && completer())
+                completer()->complete();
             QLineEdit::mouseReleaseEvent(event);
         }
     }
@@ -306,8 +273,10 @@ protected:
                 progressValue=qBound(0.,(value()-min)/(max-min),1.);
             if(m_count!=0.)
                 progressValue=qBound(0.,pow((value()-min)/(max-min),1./m_power),1.);
-            if(!m_list.isEmpty())
-                progressValue=double(m_list.indexOf(value()))/double(m_list.count()-1);
+            if(!m_valueList.isEmpty())
+                progressValue=double(m_valueList.indexOf(value()))/double(m_valueList.count()-1);
+            if(!m_stringList.isEmpty())
+                progressValue=double(m_stringList.indexOf(text()))/double(m_stringList.count()-1);
             painter.fillRect(leftMargin,topMargin,qRound(double(contentsWidth)*progressValue),height()-(topMargin+bottomMargin),palette().color(QPalette::AlternateBase));
         }
 
@@ -317,7 +286,11 @@ protected:
         int suffixWidth=metrics.width(suffix)+suffixMargin;
         int center=prefixWidth+(contentsWidth-prefixWidth-suffixWidth)/2;
         if(!prefix.isEmpty() || !suffix.isEmpty())
+        {
             setTextMargins(prefixWidth,0,suffixWidth,0);
+            if(completer())
+                completer()->popup()->setStyleSheet(QString("margin-left: %1px; margin-right: %2px; text-align: %3;").arg(prefixWidth).arg(suffixWidth).arg(alignment()&Qt::AlignLeading?"left":(alignment()&Qt::AlignTrailing?"right":"center")));
+        }
 
         QLineEdit::paintEvent(event);
 
@@ -343,6 +316,58 @@ protected:
         }
     }
 private:
+    class QValidatorExt : public QValidator
+    {
+    public:
+        QValidatorExt(QObject * parent = 0) : QValidator(parent)
+        {
+            min=max=0.;
+            minStrict=maxStrict=listStrict=true;
+            decimals=0;
+        }
+        void setRange(double min, double max, int decimals, bool minStrict, bool maxStrict) {this->min=min; this->max=max; this->decimals=decimals; this->minStrict=minStrict; this->maxStrict=maxStrict;}
+        void setValueList(QList<double> list=QList<double>(), bool strict=true) {this->valueList=list; this->listStrict=strict; this->stringList.clear();}
+        void setStringList(QStringList list=QStringList(), bool strict=true) {this->stringList=list; this->listStrict=strict; this->valueList.clear();}
+        QValidator::State validate(QString &input, int &pos) const
+        {
+            if(min<max && minStrict && input.toDouble()<min) return QValidator::Intermediate;
+            if(min<max && maxStrict && input.toDouble()>max) return QValidator::Intermediate;
+            if(!valueList.isEmpty() && listStrict && !valueList.contains(input.toDouble())) return QValidator::Intermediate;
+            if(!stringList.isEmpty() && listStrict && !stringList.contains(input)) return QValidator::Intermediate;
+            return QValidator::Acceptable;
+        }
+
+        void fixup(QString &input) const
+        {
+            if(min<max && minStrict) input=QString::number(qMax(min,input.toDouble()),'f',decimals);
+            if(min<max && maxStrict) input=QString::number(qMin(max,input.toDouble()),'f',decimals);
+            if(!valueList.isEmpty() && listStrict)
+            {
+                for(int i=0; i<=valueList.count(); i++)
+                {
+                    if(i<valueList.count() && input.toDouble()<valueList[i]) {input=QString::number(valueList[qMax(i-1,0)],'f',decimals); break;}
+                    else if(i==valueList.count()) input=QString::number(qMin(max,valueList.last()),'f',decimals);
+                }
+            }
+            if(!stringList.isEmpty() && listStrict)
+            {
+                for(int i=0; i<=stringList.count(); i++)
+                {
+                    if(i<stringList.count() && stringList[i].toLower().contains(input.toLower())){input=stringList[i]; break;}
+                    else if(i==stringList.count()) input=stringList.first();
+                }
+            }
+        }
+    private:
+        double min, max;
+        bool minStrict, maxStrict;
+        int decimals;
+
+        QList<double> valueList;
+        QStringList stringList;
+        bool listStrict;
+    };
+
     double min, max;
     bool minStrict, maxStrict;
     int decimals;
@@ -350,7 +375,8 @@ private:
     double m_step, ctrlStep;
     int m_count, ctrlCount;
     double m_power;
-    QList<double> m_list;
+    QList<double> m_valueList;
+    QStringList m_stringList;
     bool listStrict;
     bool incrementable;
 
@@ -368,7 +394,7 @@ private:
     QString prefix, suffix;
     int prefixMargin, suffixMargin;
 
-    QLineEditValidator validator;
+    QValidatorExt validator;
 };
 
 #endif // QLINEEDITEXT_H
