@@ -225,12 +225,14 @@ protected:
             setValue(defaultValue);
             finishEditing();
             lastIncrement=1; //to prevent re-editing on mouse release
+            emit editingFinished();
         }
         if(!defaultText.isEmpty())
         {
             setText(defaultText);
             finishEditing();
             lastIncrement=1; //to prevent re-editing on mouse release
+            emit editingFinished();
         }
     }
 
