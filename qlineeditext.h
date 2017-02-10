@@ -68,7 +68,7 @@ public:
     void setStep(double step, double ctrlStep=0.) {setIncrementable(step>0); this->m_step=step; this->ctrlStep=ctrlStep==0.?step:ctrlStep; finishEditing();}
     void setCount(int count, int ctrlCount=0, double power=2.) {setIncrementable(count>0); this->m_count=count; this->ctrlCount=ctrlCount==0?count:ctrlCount; this->m_power=power; finishEditing();}
     void setValueList(QList<double> list, bool strict=true) {setIncrementable(!list.isEmpty()); this->m_valueList=list; this->listStrict=strict; validator.setValueList(list,strict); finishEditing();}
-    void setTextList(QStringList list, bool strict=true) {setIncrementable(!list.isEmpty()); this->m_textList=list; this->listStrict=strict; validator.setTextList(list,strict); if(!list.isEmpty()){setCompleter(new QCompleter(list,this)); completer()->setCaseSensitivity(Qt::CaseInsensitive); completer()->setCompletionMode(QCompleter::UnfilteredPopupCompletion); completer()->setFilterMode(Qt::MatchContains); completer()->setMaxVisibleItems(10); completer()->setWrapAround(false);} finishEditing();}
+    void setTextList(QStringList list, bool strict=true) {setIncrementable(!list.isEmpty()); this->m_textList=list; this->listStrict=strict; validator.setTextList(list,strict); if(!list.isEmpty()){setCompleter(new QCompleter(list,this)); completer()->setCaseSensitivity(Qt::CaseInsensitive); completer()->setCompletionMode(QCompleter::UnfilteredPopupCompletion); completer()->setFilterMode(Qt::MatchContains); completer()->setMaxVisibleItems(10); completer()->setWrapAround(false);} refreshLayout(); finishEditing();}
     void setIncrementDragDistance(int mouse=8, int touch=12) {dragStep=mouseDragStep=mouse; touchDragStep=touch;}
     bool ctrlPressed(){return qApp->queryKeyboardModifiers()&Qt::ControlModifier;}
     IncrementDiff incrementDiff(){return m_incrementDiff;}
@@ -83,8 +83,8 @@ public:
     //Decoration - show a progress bar, define optional prefix and suffix or all at once and more with the setDescription method
     //the progress bar color can be styled with the alternate-background-color stylesheet property
     void showProgress(bool show) { progress=show; update(); }
-    void setPrefix(QString prefix){this->prefix=prefix+(prefix.isEmpty()?"":" "); update();}
-    void setSuffix(QString suffix){this->suffix=(suffix.isEmpty()?"":" ")+suffix; update();}
+    void setPrefix(QString prefix){this->prefix=prefix+(prefix.isEmpty()?"":" "); refreshLayout(); update();}
+    void setSuffix(QString suffix){this->suffix=(suffix.isEmpty()?"":" ")+suffix; refreshLayout(); update();}
     void setDescription(QString prefix, QString suffix, bool progress=true, int rightMargin=0, Qt::Alignment alignment=Qt::AlignCenter){setContentsMargins(0,0,rightMargin,0); setAlignment(alignment); this->progress=progress; setPrefix(prefix); setSuffix(suffix);}
 
     //Manual increment/decrement
@@ -266,6 +266,11 @@ protected:
             return QLineEdit::event(event);;
         }
     }
+    void resizeEvent(QResizeEvent *event)
+    {
+        refreshLayout();
+        QLineEdit::resizeEvent(event);
+    }
     void paintEvent(QPaintEvent *event)
     {
         int topMargin=contentsMargins().top();
@@ -294,12 +299,6 @@ protected:
         int textWidth=metrics.width(text());
         int suffixWidth=metrics.width(suffix)+suffixMargin;
         int center=prefixWidth+(contentsWidth-prefixWidth-suffixWidth)/2;
-        if(!prefix.isEmpty() || !suffix.isEmpty())
-        {
-            setTextMargins(prefixWidth,0,suffixWidth,0);
-            if(completer())
-                completer()->popup()->setStyleSheet(QString("padding-left: %1px; padding-right: %2px; text-align: %3;").arg(prefixWidth).arg(suffixWidth).arg(alignment()&Qt::AlignLeading?"left":(alignment()&Qt::AlignTrailing?"right":"center")));
-        }
 
         QLineEdit::paintEvent(event);
 
@@ -376,6 +375,18 @@ private:
         QStringList textList;
         bool listStrict;
     };
+
+    void refreshLayout() {
+        QFontMetrics metrics(font());
+        int prefixWidth=metrics.width(prefix)+prefixMargin;
+        int suffixWidth=metrics.width(suffix)+suffixMargin;
+        if(!prefix.isEmpty() || !suffix.isEmpty())
+        {
+            setTextMargins(prefixWidth,0,suffixWidth,0);
+            if(completer())
+                completer()->popup()->setStyleSheet(QString("padding-left: %1px; padding-right: %2px; text-align: %3;").arg(prefixWidth).arg(suffixWidth).arg(alignment()&Qt::AlignLeading?"left":(alignment()&Qt::AlignTrailing?"right":"center")));
+        }
+    }
 
     double min, max;
     bool minStrict, maxStrict;
