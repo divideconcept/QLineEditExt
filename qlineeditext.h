@@ -64,10 +64,10 @@ public:
     //-setValueList (set specific values - if set to strict, will only accept the values from the list)
     //-setTextList (set specific texts - activate a pop-up completer and if set to strict, will only accept the strings from the list)
     //the setIncrementDragDistance define the distance treshold at which an increment is considered
-    void setIncrementable(bool incrementable=true){this->incrementable=incrementable; m_step=ctrlStep=0.; m_count=ctrlCount=0; m_valueList.clear(); m_textList.clear(); validator.setValueList(); if(completer()) delete completer(); setCompleter(0); finishEditing();}
+    void setIncrementable(bool incrementable=true){this->incrementable=incrementable; m_step=ctrlStep=0.; m_count=ctrlCount=0; m_valueList.clear(); m_valueCtrlList.clear(); m_textList.clear(); validator.setValueList(); if(completer()) delete completer(); setCompleter(0); finishEditing();}
     void setStep(double step, double ctrlStep=0.) {setIncrementable(step>0); this->m_step=step; this->ctrlStep=ctrlStep==0.?step:ctrlStep; finishEditing();}
     void setCount(int count, int ctrlCount=0, double power=2.) {setIncrementable(count>0); this->m_count=count; this->ctrlCount=ctrlCount==0?count:ctrlCount; this->m_power=power; finishEditing();}
-    void setValueList(QList<double> list, bool strict=true) {setIncrementable(!list.isEmpty()); this->m_valueList=list; this->listStrict=strict; validator.setValueList(list,strict); finishEditing();}
+    void setValueList(QList<double> list, QList<double> ctrlList=QList<double>(), bool strict=true) {setIncrementable(!list.isEmpty()); this->m_valueList=list; this->m_valueCtrlList=ctrlList.isEmpty()?list:ctrlList; this->listStrict=strict; validator.setValueList(m_valueCtrlList,strict); finishEditing();}
     void setTextList(QStringList list, bool strict=true) {setIncrementable(!list.isEmpty()); this->m_textList=list; this->listStrict=strict; validator.setTextList(list,strict); if(!list.isEmpty()){setCompleter(new QCompleter(list,this)); completer()->setCaseSensitivity(Qt::CaseInsensitive); completer()->setCompletionMode(QCompleter::UnfilteredPopupCompletion); completer()->setFilterMode(Qt::MatchContains); completer()->setMaxVisibleItems(10); completer()->setWrapAround(false); connect(completer(), static_cast<void(QCompleter::*)(const QString &)>(&QCompleter::activated),[&](const QString &text){finishEditing(); emit editingFinished();});} refreshLayout(); finishEditing();}
     void setIncrementDragDistance(int mouse=8, int touch=12) {dragStep=mouseDragStep=mouse; touchDragStep=touch;}
     bool ctrlPressed(){return qApp->queryKeyboardModifiers()&Qt::ControlModifier;}
@@ -101,7 +101,21 @@ public:
             setValue(newValue);
         }
         if(!m_valueList.isEmpty())
-            setValue(m_valueList[qBound(0,m_valueList.indexOf(value())+1,m_valueList.count()-1)]);
+        {
+            if(ctrlPressed()) {
+                int i;
+                for(i=0; i<m_valueCtrlList.count(); i++)
+                    if(m_valueCtrlList[i]>value()) {setValue(m_valueCtrlList[qBound(0,i,m_valueCtrlList.count()-1)]); break;}
+                if(i==m_valueCtrlList.count())
+                    setValue(m_valueCtrlList.last());
+            } else {
+                int i;
+                for(i=0; i<m_valueList.count(); i++)
+                    if(m_valueList[i]>value()) {setValue(m_valueList[qBound(0,i,m_valueList.count()-1)]); break;}
+                if(i==m_valueList.count())
+                    setValue(m_valueList.last());
+            }
+        }
         if(!m_textList.isEmpty())
             setText(m_textList[qBound(0,m_textList.indexOf(text())+1,m_textList.count()-1)]);
         if(!isReadOnly())
@@ -124,7 +138,21 @@ public:
             setValue(newValue);
         }
         if(!m_valueList.isEmpty())
-            setValue(m_valueList[qBound(0,m_valueList.indexOf(value())-1,m_valueList.count()-1)]);
+        {
+            if(ctrlPressed()) {
+                int i;
+                for(i=0; i<m_valueCtrlList.count(); i++)
+                    if(m_valueCtrlList[i]>=value()) {setValue(m_valueCtrlList[qBound(0,i-1,m_valueCtrlList.count()-1)]); break;}
+                if(i==m_valueCtrlList.count())
+                    setValue(m_valueCtrlList.last());
+            } else {
+                int i;
+                for(i=0; i<m_valueList.count(); i++)
+                    if(m_valueList[i]>=value()) {setValue(m_valueList[qBound(0,i-1,m_valueList.count()-1)]); break;}
+                if(i==m_valueList.count())
+                    setValue(m_valueList.last());
+            }
+        }
         if(!m_textList.isEmpty())
             setText(m_textList[qBound(0,m_textList.indexOf(text())-1,m_textList.count()-1)]);
         if(!isReadOnly())
@@ -280,6 +308,12 @@ protected:
         int contentsWidth=width()-leftMargin-rightMargin;
         if(progress)
         {
+            if(palette().color(QPalette::Window).rgba()!=0)
+            {
+                backgroundColor=palette().color(QPalette::Window);
+                setStyleSheet(styleSheet()+" background: transparent;");
+            }
+
             QPainter painter(this);
             painter.setRenderHint(QPainter::Antialiasing, false);
             double progressValue=0.;
@@ -288,7 +322,13 @@ protected:
             if(m_count!=0.)
                 progressValue=qBound(0.,pow((value()-min)/(max-min),1./m_power),1.);
             if(!m_valueList.isEmpty())
-                progressValue=double(m_valueList.indexOf(value()))/double(m_valueList.count()-1);
+            {
+                int i;
+                for(i=0; i<m_valueCtrlList.count(); i++)
+                    if(m_valueCtrlList[i]>=value()) {break;}
+                progressValue=double(i)/double(m_valueCtrlList.count()-1);
+            }
+            painter.fillRect(leftMargin,topMargin,contentsWidth,height()-(topMargin+bottomMargin),backgroundColor);
             if(!m_textList.isEmpty())
                 progressValue=double(m_textList.indexOf(text()))/double(m_textList.count()-1);
             painter.fillRect(leftMargin,topMargin,qRound(double(contentsWidth)*progressValue),height()-(topMargin+bottomMargin),palette().color(QPalette::AlternateBase));
@@ -395,7 +435,7 @@ private:
     double m_step, ctrlStep;
     int m_count, ctrlCount;
     double m_power;
-    QList<double> m_valueList;
+    QList<double> m_valueList, m_valueCtrlList;
     QStringList m_textList;
     bool listStrict;
     bool incrementable;
@@ -416,6 +456,7 @@ private:
     int prefixMargin, suffixMargin;
 
     QValidatorExt validator;
+    QColor backgroundColor;
 };
 
 #endif // QLINEEDITEXT_H
