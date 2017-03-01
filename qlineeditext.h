@@ -311,7 +311,7 @@ protected:
             if(palette().color(QPalette::Window).rgba()!=0)
             {
                 backgroundColor=palette().color(QPalette::Window);
-                setStyleSheet(styleSheet()+" background: transparent;");
+                setStyleSheet(styleSheet()+" QLineEdit{background: rgba(0,0,0,0);}");
             }
 
             QPainter painter(this);
