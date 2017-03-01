@@ -329,6 +329,7 @@ protected:
                 progressValue=double(i)/double(m_valueCtrlList.count()-1);
             }
             painter.fillRect(leftMargin,topMargin,contentsWidth,height()-(topMargin+bottomMargin),backgroundColor);
+            painter.fillRect(leftMargin,topMargin,contentsWidth,height()-(topMargin+bottomMargin),backgroundColor);
             if(!m_textList.isEmpty())
                 progressValue=double(m_textList.indexOf(text()))/double(m_textList.count()-1);
             painter.fillRect(leftMargin,topMargin,qRound(double(contentsWidth)*progressValue),height()-(topMargin+bottomMargin),palette().color(QPalette::AlternateBase));
