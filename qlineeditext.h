@@ -308,7 +308,7 @@ protected:
         int contentsWidth=width()-leftMargin-rightMargin;
         if(progress)
         {
-            if(palette().color(QPalette::Window).rgba()!=backgroundColor.rgba())
+            if(palette().color(QPalette::Window).rgba()!=0)
             {
                 backgroundColor=palette().color(QPalette::Window);
                 setStyleSheet(styleSheet()+" background: transparent;");
