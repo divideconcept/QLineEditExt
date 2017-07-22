@@ -24,6 +24,7 @@ public:
         wheelSum=0;
         usingTouchKeyboard=false;
         progress=false;
+        forcedProgress=-1.;
         prefixMargin=suffixMargin=0;
         m_incrementDiff=None;
         incrementable=false;
@@ -43,6 +44,7 @@ public:
         wheelSum=0;
         usingTouchKeyboard=false;
         progress=false;
+        forcedProgress=-1.;
         prefixMargin=suffixMargin=0;
         m_incrementDiff=None;
         incrementable=false;
@@ -80,9 +82,10 @@ public:
     double value() { return text().toDouble();}
     int intValue() { return qRound(value());}
 
-    //Decoration - show a progress bar, define optional prefix and suffix or all at once and more with the setDescription method
+    //Decoration - show a progress bar (default: auto value, otherwise you can forceProgress value from 0 to 1), define optional prefix and suffix or all at once and more with the setDescription method
     //the progress bar color can be styled with the alternate-background-color stylesheet property
     void showProgress(bool show) { progress=show; update(); }
+    void forceProgress(double progress=-1.) { forcedProgress=progress; update(); }
     void setPrefix(QString prefix){this->prefix=prefix+(prefix.isEmpty()?"":" "); refreshLayout(); update();}
     void setSuffix(QString suffix){this->suffix=(suffix.isEmpty()?"":" ")+suffix; refreshLayout(); update();}
     void setDescription(QString prefix, QString suffix, bool progress=true, int rightMargin=0, Qt::Alignment alignment=Qt::AlignCenter){setContentsMargins(0,0,rightMargin,0); setAlignment(alignment); this->progress=progress; setPrefix(prefix); setSuffix(suffix);}
@@ -328,10 +331,12 @@ protected:
                     if(m_valueCtrlList[i]>=value()) {break;}
                 progressValue=double(i)/double(m_valueCtrlList.count()-1);
             }
-            painter.fillRect(leftMargin,topMargin,contentsWidth,height()-(topMargin+bottomMargin),backgroundColor);
-            painter.fillRect(leftMargin,topMargin,contentsWidth,height()-(topMargin+bottomMargin),backgroundColor);
             if(!m_textList.isEmpty())
                 progressValue=double(m_textList.indexOf(text()))/double(m_textList.count()-1);
+            if(forcedProgress>=0.) progressValue=qMin(forcedProgress,1.);
+
+            painter.fillRect(leftMargin,topMargin,contentsWidth,height()-(topMargin+bottomMargin),backgroundColor);
+            painter.fillRect(leftMargin,topMargin,contentsWidth,height()-(topMargin+bottomMargin),backgroundColor);
             painter.fillRect(leftMargin,topMargin,qRound(double(contentsWidth)*progressValue),height()-(topMargin+bottomMargin),palette().color(QPalette::AlternateBase));
         }
 
@@ -452,6 +457,7 @@ private:
     IncrementDiff m_incrementDiff;
 
     bool progress;
+    double forcedProgress;
 
     QString prefix, suffix;
     int prefixMargin, suffixMargin;
